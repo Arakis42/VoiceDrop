@@ -1,0 +1,11 @@
+openai-whisper
+pynput
+pystray
+Pillow
+sounddevice
+anthropic
+pyperclip
+soundfile
+numpy
+pycaw
+comtypes

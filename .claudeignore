@@ -1,0 +1,11 @@
+# Secrets and credentials — Claude must not read these
+.env
+.env.*
+*.env
+*.pem
+*.key
+secrets/
+
+# Excel trigger/result files may contain run data
+current_run_id.txt
+result_output.json
