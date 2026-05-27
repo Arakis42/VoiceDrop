@@ -124,34 +124,56 @@ class AppState:
         update_status_in_window(status, self._cfg.get("whisper_model"))
 
     def make_start_callback(self, mode: int):
-        def _start():
+        def _start(session: dict):
             with self._busy_lock:
                 if self._is_busy:
+                    # App ist noch beschäftigt (z. B. vorige Aufnahme wird verarbeitet).
+                    # Stop-Callback informieren, dass nichts zu stoppen gibt.
+                    session["event"].set()
                     return
                 self._is_busy = True
                 self._current_mode = mode
-            muted = False
             if self._cfg.get("mute_during_recording"):
                 audio_mute.mute_and_remember()
-                muted = True
             try:
                 self._recorder.start_recording()
             except RecorderError as e:
-                if muted:
-                    audio_mute.restore()
+                audio_mute.restore()
                 show_error_popup(str(e))
                 with self._busy_lock:
                     self._is_busy = False
+                session["event"].set()  # Fehlerfall: Stop-Pfad nicht blockieren
                 return
+            session["started"] = True   # Recorder läuft
+            session["event"].set()
             self._set_icon(create_recording_icon)
             self.update_status("Recording...")
 
         return _start
 
     def make_stop_callback(self):
-        def _stop():
-            # Restore audio after a configurable delay so trailing speech
-            # isn't cut off by the user un-muting too early.
+        def _stop(too_short: bool, session: dict):
+            # Auf Recorder-Start warten (oder Early-Return von _start wegen Busy).
+            # session["event"] wird in jedem Fall von _start gesetzt.
+            session["event"].wait(timeout=1.0)
+
+            if not session["started"]:
+                # _start() war busy oder hat sich gemeldet ohne Aufnahme → nichts zu tun.
+                logging.debug("STOP: session not started, ignoring")
+                return
+
+            if too_short:
+                # Kurz-Druck: Aufnahme verwerfen und sofort zurücksetzen.
+                logging.debug("min_hold not reached — discarding recording")
+                self._recorder.stop_recording()  # Buffer verwerfen
+                audio_mute.restore()
+                with self._busy_lock:
+                    self._is_busy = False
+                self._set_icon(create_normal_icon)
+                self.update_status("Ready")
+                return
+
+            # Normaler Pfad: Audio wiederherstellen und transkribieren.
             delay_ms = max(0, int(self._cfg.get("mute_release_delay_ms") or 0))
             if delay_ms > 0:
                 threading.Timer(delay_ms / 1000.0, audio_mute.restore).start()
@@ -280,6 +302,10 @@ def build_tray(app_state: AppState, cfg, hotkey_mgr: HotkeyManager):
 
 def main() -> None:
     cfg = get_config()
+
+    # COM-Worker für Audio-Muting vorab starten, damit der Endpoint beim ersten
+    # Tastendruck bereits gecacht ist (vermeidet 100–300 ms Anlauflatenz).
+    audio_mute.initialize()
 
     # Create the hidden root tkinter window on the MAIN thread.
     # All tkinter operations (popups, config window) are dispatched here.
