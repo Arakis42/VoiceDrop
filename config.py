@@ -25,6 +25,7 @@ DEFAULTS: dict[str, Any] = {
     "injection_delay_ms": 150,
     "mute_during_recording": True,
     "mute_release_delay_ms": 100,
+    "min_hold_duration_ms": 250,
 }
 
 

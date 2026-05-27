@@ -377,6 +377,30 @@ class ConfigWindow:
         mute_delay_spin.pack(side="left", padx=(6, 0))
         mute_delay_spin.bind("<FocusOut>", lambda _e: _on_mute_delay_change())
 
+        min_hold_row = tk.Frame(sys_frame)
+        min_hold_row.pack(anchor="w", padx=24, pady=(0, 6))
+        tk.Label(min_hold_row, text="Mindest-Haltezeit Hotkey (ms):",
+                 font=("Segoe UI", 9)).pack(side="left")
+        self._min_hold_var = tk.IntVar(
+            value=int(self._cfg.get("min_hold_duration_ms") or 0))
+
+        def _on_min_hold_change():
+            try:
+                val = max(0, min(2000, int(self._min_hold_var.get())))
+            except (ValueError, tk.TclError):
+                val = 250
+            self._min_hold_var.set(val)
+            if val != self._cfg.get("min_hold_duration_ms"):
+                self._cfg.set("min_hold_duration_ms", val)
+
+        min_hold_spin = tk.Spinbox(
+            min_hold_row, from_=0, to=2000, increment=50,
+            textvariable=self._min_hold_var, width=6, font=("Segoe UI", 9),
+            command=_on_min_hold_change,
+        )
+        min_hold_spin.pack(side="left", padx=(6, 0))
+        min_hold_spin.bind("<FocusOut>", lambda _e: _on_min_hold_change())
+
         # ── Status section ───────────────────────────────────────
         st_frame = tk.LabelFrame(win, text="Status", font=("Segoe UI", 9, "bold"))
         st_frame.pack(fill="x", **pad)

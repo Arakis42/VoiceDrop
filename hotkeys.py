@@ -1,5 +1,6 @@
 import logging
 import threading
+import time
 from typing import Callable, Optional
 
 try:
@@ -71,9 +72,12 @@ class HotkeyManager:
         self._callbacks = callbacks
         self._held: set[str] = set()
         self._active_mode: Optional[int] = None
+        self._combo_start_time: float = 0.0
+        self._session: dict = {}          # per-keypress session state, shared by start+stop
         self._lock = threading.Lock()
         self._listener: Optional["keyboard.Listener"] = None
         self._hotkeys: dict[int, tuple[frozenset, str]] = {}
+        self._min_hold_ms: int = 250
         self._reload_config()
 
     def _reload_config(self) -> None:
@@ -84,7 +88,8 @@ class HotkeyManager:
             2: _parse_hotkey(cfg.get("hotkey_mode2")),
             3: _parse_hotkey(cfg.get("hotkey_mode3")),
         }
-        logging.debug("Hotkeys reloaded: %s", self._hotkeys)
+        self._min_hold_ms = int(cfg.get("min_hold_duration_ms") or 0)
+        logging.debug("Hotkeys reloaded: %s, min_hold_ms=%d", self._hotkeys, self._min_hold_ms)
 
     def start(self) -> None:
         if not PYNPUT_AVAILABLE:
@@ -130,10 +135,15 @@ class HotkeyManager:
                 required = modifiers | {trigger}
                 if required and required.issubset(self._held):
                     self._active_mode = mode
+                    self._combo_start_time = time.time()
+                    # Frisches Session-Objekt pro Tastendruck; wird von
+                    # Start- und Stop-Callback geteilt (kein Stale-State).
+                    session = {"event": threading.Event(), "started": False}
+                    self._session = session
                     logging.debug("COMBO START mode=%d", mode)
                     cb = self._callbacks.get(mode)
                     if cb:
-                        t = threading.Thread(target=cb[0], daemon=True)
+                        t = threading.Thread(target=cb[0], args=(session,), daemon=True)
                         t.start()
                     break
 
@@ -154,8 +164,11 @@ class HotkeyManager:
             if cat in combo:
                 mode = self._active_mode
                 self._active_mode = None
-                logging.debug("COMBO END mode=%d", mode)
+                held_ms = (time.time() - self._combo_start_time) * 1000
+                too_short = self._min_hold_ms > 0 and held_ms < self._min_hold_ms
+                session = self._session
+                logging.debug("COMBO END mode=%d held_ms=%.0f too_short=%s", mode, held_ms, too_short)
                 cb = self._callbacks.get(mode)
                 if cb:
-                    t = threading.Thread(target=cb[1], daemon=True)
+                    t = threading.Thread(target=cb[1], args=(too_short, session), daemon=True)
                     t.start()
