@@ -16,6 +16,33 @@ _SHIFT_VKS = {160, 161}  # VK_LSHIFT, VK_RSHIFT
 _ALT_VKS = {164, 165}    # VK_LMENU, VK_RMENU
 
 
+def _vk_category(vk: Optional[int]) -> Optional[str]:
+    """Map a raw Windows VK code to a canonical category ('ctrl'/'shift'/'alt'
+    or a lowercase char/name). Shared by the pynput key path and the low-level
+    win32 suppression filter."""
+    if vk is None:
+        return None
+    if vk in _CTRL_VKS:
+        return "ctrl"
+    if vk in _SHIFT_VKS:
+        return "shift"
+    if vk in _ALT_VKS:
+        return "alt"
+    # A–Z (VK 65–90) → lowercase letter
+    if 65 <= vk <= 90:
+        return chr(vk + 32)
+    # 0–9 number row (VK 48–57)
+    if 48 <= vk <= 57:
+        return chr(vk)
+    # Numpad 0–9 (VK 96–105)
+    if 96 <= vk <= 105:
+        return str(vk - 96)
+    # F1–F12 (VK 112–123)
+    if 112 <= vk <= 123:
+        return f"f{vk - 111}"
+    return None
+
+
 def _key_category(key) -> Optional[str]:
     """Return a canonical string for the key: 'ctrl', 'shift', 'alt', or a lowercase char/name."""
     if not PYNPUT_AVAILABLE:
@@ -31,26 +58,9 @@ def _key_category(key) -> Optional[str]:
         return None
 
     if isinstance(key, KeyCode):
-        vk = getattr(key, "vk", None)
-        if vk is not None:
-            if vk in _CTRL_VKS:
-                return "ctrl"
-            if vk in _SHIFT_VKS:
-                return "shift"
-            if vk in _ALT_VKS:
-                return "alt"
-            # A–Z (VK 65–90) → lowercase letter
-            if 65 <= vk <= 90:
-                return chr(vk + 32)
-            # 0–9 number row (VK 48–57)
-            if 48 <= vk <= 57:
-                return chr(vk)
-            # Numpad 0–9 (VK 96–105)
-            if 96 <= vk <= 105:
-                return str(vk - 96)
-            # F1–F12 (VK 112–123)
-            if 112 <= vk <= 123:
-                return f"f{vk - 111}"
+        cat = _vk_category(getattr(key, "vk", None))
+        if cat is not None:
+            return cat
         # Fallback: use char, normalised to lowercase
         char = getattr(key, "char", None)
         if char:
@@ -72,6 +82,7 @@ class HotkeyManager:
         self._callbacks = callbacks
         self._held: set[str] = set()
         self._active_mode: Optional[int] = None
+        self._active_combo: frozenset[str] = frozenset()
         self._combo_start_time: float = 0.0
         self._session: dict = {}          # per-keypress session state, shared by start+stop
         self._lock = threading.Lock()
@@ -99,9 +110,32 @@ class HotkeyManager:
         self._listener = keyboard.Listener(
             on_press=self._on_press,
             on_release=self._on_release,
+            win32_event_filter=self._win32_event_filter,
         )
         self._listener.daemon = True
         self._listener.start()
+
+    def _win32_event_filter(self, msg, data) -> bool:
+        """Low-level Windows hook filter. While a hotkey combo is active we
+        suppress the *repeated* key-down events of that combo so they never
+        reach the focused window. Without this, a held hold-to-talk chord like
+        Ctrl+Shift+Alt+Q leaks hundreds of synthetic presses into the active
+        text field during recording (a macro key re-fires the whole chord
+        ~30 ms apart).
+
+        Only WM_KEYDOWN / WM_SYSKEYDOWN are suppressed — key-up is always let
+        through, so every key stays balanced and no modifier can get stuck
+        'pressed' system-wide. Returns True to still pass the event to our own
+        on_press/on_release callbacks (suppress_event only blocks the system).
+        """
+        if self._active_mode is None:
+            return True
+        if msg not in (0x0100, 0x0104):  # WM_KEYDOWN, WM_SYSKEYDOWN
+            return True
+        cat = _vk_category(getattr(data, "vkCode", None))
+        if cat is not None and cat in self._active_combo and self._listener:
+            self._listener.suppress_event()
+        return True
 
     def stop(self) -> None:
         if self._listener:
@@ -113,6 +147,7 @@ class HotkeyManager:
         with self._lock:
             self._held.clear()
             self._active_mode = None
+            self._active_combo = frozenset()
 
     def reload_hotkeys(self) -> None:
         self.stop()
@@ -135,6 +170,7 @@ class HotkeyManager:
                 required = modifiers | {trigger}
                 if required and required.issubset(self._held):
                     self._active_mode = mode
+                    self._active_combo = frozenset(required)
                     self._combo_start_time = time.time()
                     # Frisches Session-Objekt pro Tastendruck; wird von
                     # Start- und Stop-Callback geteilt (kein Stale-State).
@@ -164,6 +200,7 @@ class HotkeyManager:
             if cat in combo:
                 mode = self._active_mode
                 self._active_mode = None
+                self._active_combo = frozenset()
                 held_ms = (time.time() - self._combo_start_time) * 1000
                 too_short = self._min_hold_ms > 0 and held_ms < self._min_hold_ms
                 session = self._session
