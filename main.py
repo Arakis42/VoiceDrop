@@ -11,11 +11,31 @@ _local_app_data = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / 
 _log_dir = _local_app_data / "VoiceDrop"
 _log_dir.mkdir(parents=True, exist_ok=True)
 _log_file = _log_dir / "voicedrop.log"
-logging.basicConfig(
-    filename=str(_log_file),
-    level=logging.DEBUG,
-    format="%(asctime)s %(levelname)s %(message)s",
+
+# Tägliche Rotation um Mitternacht; backupCount=1 → es bleiben nur die aktive
+# Datei (heute) und ein Backup (gestern) erhalten, alles Ältere wird gelöscht.
+from logging.handlers import TimedRotatingFileHandler
+
+_log_handler = TimedRotatingFileHandler(
+    str(_log_file), when="midnight", backupCount=1, encoding="utf-8"
 )
+_log_handler.setFormatter(
+    logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+)
+logging.basicConfig(level=logging.DEBUG, handlers=[_log_handler])
+
+# Wenn die vorhandene Logdatei noch von einem früheren Tag stammt, einmalig
+# beim Start rotieren, damit der heutige Lauf frisch beginnt und alte Riesen-
+# Logs nicht bis zur nächsten Mitternacht weiterwachsen.
+try:
+    if _log_file.exists() and _log_file.stat().st_size > 0:
+        import datetime as _dt
+
+        _mtime = _dt.date.fromtimestamp(_log_file.stat().st_mtime)
+        if _mtime < _dt.date.today():
+            _log_handler.doRollover()
+except Exception:
+    pass
 
 
 def _handle_exception(exc_type, exc_value, exc_tb):
@@ -55,6 +75,21 @@ from ui import (
 from version import APP_NAME, VERSION
 
 
+def _release_stuck_modifiers(kb) -> None:
+    """Hält ein Modifier (Ctrl/Shift/Alt) logisch gedrückt — etwa weil eine
+    Makro-Taste eine Modifier-Kombi sendet und sich desynchronisiert — dann
+    verfälscht das ALLE folgenden simulierten Tastendrücke (aus 'a' wird
+    Ctrl+Alt+a → '©' o. ä.). Vor dem Einfügen daher alle Modifier explizit
+    loslassen. Das Loslassen einer nicht gedrückten Taste ist harmlos.
+    """
+    K = pynput_keyboard.Key
+    for mod in (K.ctrl_l, K.ctrl_r, K.shift_l, K.shift_r, K.alt_l, K.alt_r, K.alt_gr):
+        try:
+            kb.release(mod)
+        except Exception:
+            pass
+
+
 def inject_text(text: str) -> None:
     cfg = get_config()
     method = cfg.get("injection_method")
@@ -63,6 +98,7 @@ def inject_text(text: str) -> None:
     if method == "type":
         try:
             kb = pynput_keyboard.Controller()
+            _release_stuck_modifiers(kb)
             kb.type(text)
         except Exception as e:
             show_error_popup(f"Failed to inject text: {e}")
@@ -76,6 +112,7 @@ def inject_text(text: str) -> None:
         pyperclip.copy(text)
         time.sleep(max(0, int(delay_ms)) / 1000.0)
         kb = pynput_keyboard.Controller()
+        _release_stuck_modifiers(kb)
         with kb.pressed(pynput_keyboard.Key.ctrl):
             kb.press("v")
             kb.release("v")
