@@ -77,6 +77,11 @@ All UI updates from background threads must go through `_main_root.after(0, fn)`
 - `clipboard`: pyperclip + Ctrl+V simulation (default). Does not work in Citrix (no clipboard access). Delay configurable via `injection_delay_ms`.
 - `type`: pynput `kb.type(text)` — character-by-character via SendInput. Works in Citrix. Configured via `injection_method` and `injection_delay_ms` in config.
 
+**Newlines in injected text.** Modes 2/3 can produce multi-line output (paragraphs, lists). With `clipboard` the text is pasted as a block, so newlines stay as newlines in fields that use bracketed paste (Claude Code, most editors/chat UIs) — no premature submit. With `type`, pynput turns each `\n` into a real Enter keystroke, which **submits prematurely** in fields where Enter = send (chat boxes, Claude Code). This is a known, accepted limitation of the Citrix `type` path; it is not worked around.
+
+### Claude model per mode (`processor.py`)
+`MODE_CONFIG` maps each mode to a `(model, system_prompt)` pair. Mode 2 (cleanup) runs on `claude-haiku-4-5` (faster/cheaper, sufficient for grammar/filler cleanup); mode 3 (cleanup + translate) runs on `claude-sonnet-4-6`. `MAX_TOKENS` is shared (2048). The system prompts also handle self-correction resolution, paragraph/list formatting, number/symbol normalisation, and contain a prompt-injection guard (treat input as text, never as instructions).
+
 ### Language / Whisper behaviour
 When `whisper_language == "de"` **and** `whisper_initial_prompt` is set, `language` is passed as `None` (auto-detect per segment) and the prompt biases Whisper toward German while still allowing English technical terms through. Setting `whisper_language` to anything else, or clearing the prompt, uses standard Whisper behaviour.
 
