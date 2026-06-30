@@ -15,17 +15,44 @@ class RecorderError(Exception):
 
 
 def get_input_devices() -> list[tuple[str, int]]:
-    """Return [(name, index), ...] for all available input devices."""
+    """Return [(name, index), ...] for selectable input devices, de-duplicated.
+
+    Windows exposes every physical mic once per host API (MME, DirectSound,
+    WASAPI, WDM-KS), which floods the picker with near-identical entries and
+    truncated MME names. We therefore prefer the modern WASAPI host API, which
+    lists each active device exactly once with its full name. If WASAPI is
+    unavailable (e.g. non-Windows), we fall back to de-duplicating by name
+    across all host APIs.
+    """
     if not SOUNDDEVICE_AVAILABLE:
         return []
     try:
-        return [
-            (d["name"], i)
-            for i, d in enumerate(sd.query_devices())
-            if d["max_input_channels"] > 0
-        ]
+        devices = sd.query_devices()
     except Exception:
         return []
+
+    wasapi_idx = None
+    try:
+        for i, h in enumerate(sd.query_hostapis()):
+            if "wasapi" in h["name"].lower():
+                wasapi_idx = i
+                break
+    except Exception:
+        wasapi_idx = None
+
+    result: list[tuple[str, int]] = []
+    seen: set[str] = set()
+    for i, d in enumerate(devices):
+        if d["max_input_channels"] <= 0:
+            continue
+        if wasapi_idx is not None and d["hostapi"] != wasapi_idx:
+            continue
+        name = d["name"]
+        if name in seen:
+            continue
+        seen.add(name)
+        result.append((name, i))
+    return result
 
 
 def _find_device_index(name: str) -> int | None:
