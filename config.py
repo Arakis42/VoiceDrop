@@ -26,6 +26,7 @@ DEFAULTS: dict[str, Any] = {
     "mute_during_recording": True,
     "mute_release_delay_ms": 100,
     "min_hold_duration_ms": 250,
+    "audio_device": None,   # None = system default; otherwise stored as device name string
 }
 
 

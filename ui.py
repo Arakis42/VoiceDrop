@@ -97,6 +97,8 @@ class ConfigWindow:
         self._delay_label: Optional[tk.Label] = None
         self._delay_spin: Optional[tk.Spinbox] = None
         self._prompt_entry: Optional[tk.Text] = None
+        self._mic_var: Optional[tk.StringVar] = None
+        self._mic_combo: Optional[ttk.Combobox] = None
 
     def is_open(self) -> bool:
         return self._win is not None and self._win.winfo_exists()
@@ -282,6 +284,32 @@ class ConfigWindow:
         self._progress_label = tk.Label(wm_frame, text="", font=("Segoe UI", 8), fg="#444")
         self._progress_label.grid(row=5, column=0, columnspan=3, padx=8, pady=(0, 6))
         self._progress_label.grid_remove()
+
+        # ── Mikrofon section ─────────────────────────────────────
+        mic_frame = tk.LabelFrame(win, text="Mikrofon", font=("Segoe UI", 9, "bold"))
+        mic_frame.pack(fill="x", **pad)
+
+        from recorder import get_input_devices
+        device_names = ["Standard (System)"] + [name for name, _ in get_input_devices()]
+        current_device = self._cfg.get("audio_device") or ""
+        mic_display = current_device if current_device in device_names else "Standard (System)"
+        self._mic_var = tk.StringVar(value=mic_display)
+
+        tk.Label(mic_frame, text="Gerät:", font=("Segoe UI", 9)).grid(
+            row=0, column=0, sticky="w", padx=8, pady=6)
+
+        self._mic_combo = ttk.Combobox(
+            mic_frame, textvariable=self._mic_var,
+            values=device_names, state="readonly", width=34,
+            font=("Segoe UI", 9),
+        )
+        self._mic_combo.grid(row=0, column=1, sticky="w", padx=(4, 4), pady=6)
+        self._mic_combo.bind("<<ComboboxSelected>>", self._on_mic_change)
+
+        tk.Button(
+            mic_frame, text="↻", font=("Segoe UI", 9),
+            command=self._refresh_mic_list, width=3,
+        ).grid(row=0, column=2, padx=(0, 8), pady=6)
 
         # ── Texteingabe section ──────────────────────────────────
         inj_frame = tk.LabelFrame(win, text="Texteingabe", font=("Segoe UI", 9, "bold"))
@@ -606,6 +634,21 @@ class ConfigWindow:
             val = 150
         self._delay_var.set(val)
         self._cfg.set("injection_delay_ms", val)
+
+    # ── Mikrofon ─────────────────────────────────────────────────
+
+    def _on_mic_change(self, _event=None) -> None:
+        selection = self._mic_var.get()
+        self._cfg.set("audio_device", None if selection == "Standard (System)" else selection)
+
+    def _refresh_mic_list(self) -> None:
+        from recorder import get_input_devices
+        device_names = ["Standard (System)"] + [name for name, _ in get_input_devices()]
+        if self._mic_combo:
+            self._mic_combo.config(values=device_names)
+        if self._mic_var and self._mic_var.get() not in device_names:
+            self._mic_var.set("Standard (System)")
+            self._cfg.set("audio_device", None)
 
     # ── Status update (called from main thread via after()) ──────
 

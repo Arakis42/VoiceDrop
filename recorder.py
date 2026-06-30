@@ -14,6 +14,31 @@ class RecorderError(Exception):
     pass
 
 
+def get_input_devices() -> list[tuple[str, int]]:
+    """Return [(name, index), ...] for all available input devices."""
+    if not SOUNDDEVICE_AVAILABLE:
+        return []
+    try:
+        return [
+            (d["name"], i)
+            for i, d in enumerate(sd.query_devices())
+            if d["max_input_channels"] > 0
+        ]
+    except Exception:
+        return []
+
+
+def _find_device_index(name: str) -> int | None:
+    """Return device index for the given name, or None if not found (falls back to default)."""
+    try:
+        for dev_name, idx in get_input_devices():
+            if dev_name == name:
+                return idx
+    except Exception:
+        pass
+    return None
+
+
 class AudioRecorder:
     SAMPLE_RATE = 16000
     CHANNELS = 1
@@ -62,12 +87,17 @@ class AudioRecorder:
             if not self._stop_event.is_set():
                 self._frames.append(indata.copy())
 
+        from config import get_config
+        device_name = get_config().get("audio_device")
+        device_idx = _find_device_index(device_name) if device_name else None
+
         try:
             with sd.InputStream(
                 samplerate=self.SAMPLE_RATE,
                 channels=self.CHANNELS,
                 dtype="int16",
                 callback=_callback,
+                device=device_idx,
             ):
                 self._stop_event.wait()
         except Exception:
