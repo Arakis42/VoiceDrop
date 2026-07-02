@@ -376,8 +376,6 @@ def main() -> None:
     transcriber = get_transcriber()
     transcriber.set_model_name(cfg.get("whisper_model"))
 
-    threading.Thread(target=_load_model_silently, args=(transcriber,), daemon=True).start()
-
     hotkey_mgr = HotkeyManager({})
     app_state = AppState(cfg, recorder, hotkey_mgr)
 
@@ -396,6 +394,13 @@ def main() -> None:
     tray_thread = threading.Thread(target=icon.run, daemon=True)
     tray_thread.start()
 
+    # Load the Whisper model now that the tray exists, so its progress is
+    # reflected in the tooltip/status ("Loading model …" → "Ready") instead of
+    # showing "Ready" while the model is still unavailable.
+    threading.Thread(
+        target=_load_model_silently, args=(transcriber, app_state), daemon=True
+    ).start()
+
     if cfg.is_first_run():
         cfg.mark_first_run_done()
         root.after(1500, lambda: open_config_window(cfg, hotkey_mgr))
@@ -408,16 +413,22 @@ def main() -> None:
     icon.stop()
 
 
-def _load_model_silently(transcriber) -> None:
+def _load_model_silently(transcriber, app_state=None) -> None:
     model = transcriber.get_model_name()
     logging.info("Loading Whisper model %r …", model)
+    if app_state is not None:
+        app_state.update_status(f"Loading model {model} …")
     try:
         transcriber.load_model()
         logging.info("Whisper model %r loaded", model)
+        if app_state is not None:
+            app_state.update_status("Ready")
     except Exception:
         # Previously swallowed silently, which surfaced only later as the
         # misleading "please download the model" popup on the first dictation.
         logging.exception("Whisper model %r failed to load", model)
+        if app_state is not None:
+            app_state.update_status("Model error – see log")
 
 
 if __name__ == "__main__":
