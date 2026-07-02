@@ -399,10 +399,15 @@ def main() -> None:
 
 
 def _load_model_silently(transcriber) -> None:
+    model = transcriber.get_model_name()
+    logging.info("Loading Whisper model %r …", model)
     try:
         transcriber.load_model()
+        logging.info("Whisper model %r loaded", model)
     except Exception:
-        pass
+        # Previously swallowed silently, which surfaced only later as the
+        # misleading "please download the model" popup on the first dictation.
+        logging.exception("Whisper model %r failed to load", model)
 
 
 if __name__ == "__main__":

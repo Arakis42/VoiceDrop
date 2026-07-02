@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any
@@ -75,16 +76,24 @@ class Config:
             self.save()
 
     def save(self) -> None:
-        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
         tmp = CONFIG_FILE.with_suffix(".json.tmp")
         try:
+            CONFIG_DIR.mkdir(parents=True, exist_ok=True)
             with open(tmp, "w", encoding="utf-8") as f:
                 json.dump(self._data, f, indent=2, ensure_ascii=False)
             os.replace(tmp, CONFIG_FILE)
-        except OSError as e:
-            if tmp.exists():
-                tmp.unlink(missing_ok=True)
-            raise e
+            logging.debug("Config saved to %s", CONFIG_FILE)
+        except Exception as e:
+            # Was previously swallowed by the caller's Tk callback, so a failing
+            # save looked like the app "forgetting" settings. Log the real cause
+            # (exception type + target path) before re-raising.
+            logging.exception("Config save FAILED (target=%s): %s", CONFIG_FILE, e)
+            try:
+                if tmp.exists():
+                    tmp.unlink(missing_ok=True)
+            except OSError:
+                pass
+            raise
 
     def get(self, key: str) -> Any:
         return self._data.get(key, DEFAULTS.get(key))

@@ -1,4 +1,5 @@
 import io
+import logging
 import threading
 import wave
 
@@ -55,15 +56,82 @@ def get_input_devices() -> list[tuple[str, int]]:
     return result
 
 
-def _find_device_index(name: str) -> int | None:
-    """Return device index for the given name, or None if not found (falls back to default)."""
+def _wasapi_settings_for(device_idx: int | None):
+    """Return WasapiSettings(auto_convert=True) for WASAPI devices, else None.
+
+    WASAPI in shared mode rejects sample rates that differ from the device's
+    native mix format (e.g. our fixed 16 kHz vs a 48 kHz webcam mic) with
+    "Invalid sample rate [-9997]". auto_convert enables PortAudio's built-in
+    sample-rate conversion so 16 kHz capture works when we do open via WASAPI.
+    """
+    if device_idx is None:
+        return None
     try:
-        for dev_name, idx in get_input_devices():
-            if dev_name == name:
-                return idx
+        dev = sd.query_devices(device_idx)
+        host = sd.query_hostapis(dev["hostapi"])
+        if "wasapi" in host["name"].lower():
+            return sd.WasapiSettings(auto_convert=True)
     except Exception:
-        pass
+        logging.debug("Could not determine host API for device %r",
+                      device_idx, exc_info=True)
     return None
+
+
+# Host APIs ordered by how reliably they open an input stream at our fixed
+# 16 kHz on Windows. DirectSound/MME resample natively and open reliably;
+# WASAPI needs auto_convert and has proven flaky for capture on some machines
+# (raises "Unanticipated host error -9999"); WDM-KS is exclusive/low-level and
+# kept last as a desperation attempt.
+_HOSTAPI_CAPTURE_PREFERENCE = ("directsound", "mme", "wasapi", "wdm-ks")
+
+
+def _name_matches(dev_name: str, wanted: str) -> bool:
+    """True if a device name matches the stored selection.
+
+    The picker stores the WASAPI/DirectSound full name, but the same physical
+    mic appears under MME with the name truncated to 31 chars — so we also
+    accept a prefix match (guarded by a min length to avoid false positives).
+    """
+    if dev_name == wanted:
+        return True
+    if min(len(dev_name), len(wanted)) >= 12 and (
+        wanted.startswith(dev_name) or dev_name.startswith(wanted)
+    ):
+        return True
+    return False
+
+
+def _candidate_devices(name: str) -> list[tuple[int, str]]:
+    """All input-device indices matching `name`, ordered by capture reliability.
+
+    Returns [(index, host_api_name), ...] across every host API so recording
+    can fall through from a flaky host API (WASAPI) to one that actually works
+    at 16 kHz (DirectSound/MME) without the user having to change anything.
+    """
+    if not name:
+        return []
+    try:
+        devices = sd.query_devices()
+        hostapis = sd.query_hostapis()
+    except Exception:
+        return []
+
+    def pref(host_name: str) -> int:
+        h = host_name.lower()
+        for i, key in enumerate(_HOSTAPI_CAPTURE_PREFERENCE):
+            if key in h:
+                return i
+        return len(_HOSTAPI_CAPTURE_PREFERENCE)
+
+    matches = []
+    for i, d in enumerate(devices):
+        if d["max_input_channels"] <= 0:
+            continue
+        if _name_matches(d["name"], name):
+            host_name = hostapis[d["hostapi"]]["name"]
+            matches.append((pref(host_name), i, host_name))
+    matches.sort(key=lambda t: t[0])
+    return [(i, h) for _, i, h in matches]
 
 
 class AudioRecorder:
@@ -111,24 +179,39 @@ class AudioRecorder:
 
     def _record_loop(self) -> None:
         def _callback(indata, frames, time_info, status):
+            if status:
+                logging.debug("Recording stream status: %s", status)
             if not self._stop_event.is_set():
                 self._frames.append(indata.copy())
 
         from config import get_config
         device_name = get_config().get("audio_device")
-        device_idx = _find_device_index(device_name) if device_name else None
 
-        try:
-            with sd.InputStream(
-                samplerate=self.SAMPLE_RATE,
-                channels=self.CHANNELS,
-                dtype="int16",
-                callback=_callback,
-                device=device_idx,
-            ):
-                self._stop_event.wait()
-        except Exception:
-            pass
+        # Try the selected mic across all its host APIs (reliable ones first),
+        # then the system default. The first stream that opens is used for the
+        # whole recording; the log records which host API actually worked.
+        attempts = _candidate_devices(device_name) + [(None, "system default")]
+
+        for idx, host in attempts:
+            try:
+                with sd.InputStream(
+                    samplerate=self.SAMPLE_RATE,
+                    channels=self.CHANNELS,
+                    dtype="int16",
+                    callback=_callback,
+                    device=idx,
+                    extra_settings=_wasapi_settings_for(idx),
+                ):
+                    logging.info("Recording via %s (index %s)", host, idx)
+                    self._stop_event.wait()
+                return
+            except Exception as e:
+                logging.warning("Recording open failed via %s (index %s): %s",
+                                host, idx, e)
+                if self._stop_event.is_set():
+                    break  # user already released; don't keep probing
+        logging.error("Recording failed on all candidate devices for %r",
+                      device_name)
 
     def stop_recording(self) -> io.BytesIO:
         if self._stop_event:
