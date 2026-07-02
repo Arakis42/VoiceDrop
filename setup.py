@@ -14,6 +14,8 @@ import sys
 import winreg
 from pathlib import Path
 
+import autostart  # ensure_named_launcher() – VoiceDrop.exe statt pythonw.exe
+
 
 def _is_admin() -> bool:
     try:
@@ -138,13 +140,13 @@ def do_install(
     ico = _generate_ico(install_dir)
 
     _p(55, "Verkuepfungen werden erstellt …")
-    pythonw = _find_pythonw()
+    launcher = autostart.ensure_named_launcher()  # VoiceDrop.exe (Task-Manager)
     main_py = install_dir / "main.py"
 
     if create_start_menu:
-        _create_shortcut(START_MENU_LNK, pythonw, main_py, ico)
+        _create_shortcut(START_MENU_LNK, launcher, main_py, ico)
     if create_desktop:
-        _create_shortcut(DESKTOP_LNK, pythonw, main_py, ico)
+        _create_shortcut(DESKTOP_LNK, launcher, main_py, ico)
 
     _p(75, "Registry wird geschrieben …")
     _write_install_reg(install_dir, ico)
@@ -238,12 +240,6 @@ def _generate_ico(install_dir: Path) -> Path:
     ico = install_dir / "voicedrop.ico"
     mod.save_ico_file(ico)
     return ico
-
-
-def _find_pythonw() -> Path:
-    """Gibt den Pfad zu pythonw.exe zurueck (kein Konsolenfenster)."""
-    pw = Path(sys.executable).parent / "pythonw.exe"
-    return pw if pw.exists() else Path(sys.executable)
 
 
 def _create_shortcut(lnk: Path, target: Path, script: Path, icon: Path) -> None:
