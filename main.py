@@ -22,7 +22,17 @@ _log_handler = TimedRotatingFileHandler(
 _log_handler.setFormatter(
     logging.Formatter("%(asctime)s %(levelname)s %(message)s")
 )
-logging.basicConfig(level=logging.DEBUG, handlers=[_log_handler])
+# DEBUG logs every keystroke (hotkeys.py) and the full Claude request bodies
+# — i.e. the dictated text — to disk. That is a privacy risk, so DEBUG is now
+# opt-in via the VOICEDROP_DEBUG env var; the default is INFO.
+_log_level = logging.DEBUG if os.environ.get("VOICEDROP_DEBUG") else logging.INFO
+logging.basicConfig(level=_log_level, handlers=[_log_handler])
+
+# The HTTP stack (used by the Anthropic SDK) logs full request/response bodies
+# at DEBUG — that includes the dictated text and prompts. Keep it quiet even
+# when VOICEDROP_DEBUG is on, so enabling debug never leaks dictation content.
+for _noisy_logger in ("httpx", "httpcore", "anthropic", "urllib3"):
+    logging.getLogger(_noisy_logger).setLevel(logging.WARNING)
 
 # Wenn die vorhandene Logdatei noch von einem früheren Tag stammt, einmalig
 # beim Start rotieren, damit der heutige Lauf frisch beginnt und alte Riesen-
