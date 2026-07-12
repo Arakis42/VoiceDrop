@@ -9,8 +9,9 @@ import mage.simulator.features.FeatureCollector;
  * different AI configurations per seat).
  * <p>
  * Types:
- * - "mad":   ComputerPlayer7, the strongest built-in AI (game simulations)
- * - "basic": ComputerPlayer, plays nothing proactively — goldfish target
+ * - "mad":         ComputerPlayer7, the strongest built-in AI (game simulations)
+ * - "mad-synergy": ComputerPlayer7 + SynergyScorer plugged into the evaluator (backlog 2.2)
+ * - "basic":       ComputerPlayer, plays nothing proactively — goldfish target
  */
 public final class PlayerFactory {
 
@@ -19,17 +20,22 @@ public final class PlayerFactory {
 
     public static Player create(String type, String name, int skill, int thinkTimeSecs) {
         switch (type) {
-            case "mad": {
+            case "mad":
+            case "mad-synergy": {
                 InstrumentedPlayer7 player = new InstrumentedPlayer7(name, RangeOfInfluence.ONE, skill);
                 if (thinkTimeSecs > 0) {
                     player.setMaxThinkTimeSecs(thinkTimeSecs);
+                }
+                if (type.equals("mad-synergy")) {
+                    mage.simulator.synergy.SynergyScorer.install();
+                    mage.simulator.synergy.SynergyScorer.getInstance().enablePlayer(player.getId());
                 }
                 return player;
             }
             case "basic":
                 return new InstrumentedBasicPlayer(name, RangeOfInfluence.ONE);
             default:
-                throw new IllegalArgumentException("Unknown player type '" + type + "' (supported: mad, basic)");
+                throw new IllegalArgumentException("Unknown player type '" + type + "' (supported: mad, mad-synergy, basic)");
         }
     }
 

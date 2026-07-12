@@ -147,6 +147,10 @@ public final class CardSynergyTags {
                 tags.produces.add(SynergyTag.LANDFALL);
             }
         }
+
+        // merge optional external tags (e.g. Scryfall Tagger otags, see ExternalTags)
+        ExternalTags.mergeInto(card.getName(), tags.produces, tags.consumes);
+
         return tags;
     }
 }

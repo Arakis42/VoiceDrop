@@ -1,0 +1,41 @@
+diff --git a/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/GameStateEvaluator2.java b/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/GameStateEvaluator2.java
+index 9c96a619..f628de4b 100644
+--- a/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/GameStateEvaluator2.java
++++ b/Mage.Server.Plugins/Mage.Player.AI/src/main/java/mage/player/ai/score/GameStateEvaluator2.java
+@@ -24,6 +24,22 @@ public final class GameStateEvaluator2 {
+ 
+     public static final int HAND_CARD_SCORE = 5;
+ 
++    /**
++     * Optional pluggable scorer added on top of the built-in evaluation
++     * (e.g. synergy scoring from the simulator). Must be fast and side-effect
++     * free — it is called for every evaluated node in AI simulations.
++     * The scorer decides itself for which players it is active (return 0 otherwise).
++     */
++    public interface ExtraScorer {
++        int score(UUID playerId, Game game);
++    }
++
++    private static volatile ExtraScorer extraScorer = null;
++
++    public static void setExtraScorer(ExtraScorer scorer) {
++        extraScorer = scorer;
++    }
++
+     public static PlayerEvaluateScore evaluate(UUID playerId, Game game) {
+         return evaluate(playerId, game, true);
+     }
+@@ -112,6 +128,13 @@ public final class GameStateEvaluator2 {
+         int playerHandScore = player.getHand().size() * HAND_CARD_SCORE;
+         int opponentHandScore = opponent.getHand().size() * HAND_CARD_SCORE;
+ 
++        // pluggable extra scoring (e.g. synergy), added to the permanents component
++        ExtraScorer scorer = extraScorer;
++        if (scorer != null) {
++            playerPermanentsScore += scorer.score(playerId, game);
++            opponentPermanentsScore += scorer.score(opponent.getId(), game);
++        }
++
+         int score = (playerLifeScore - opponentLifeScore)
+                 + (playerPermanentsScore - opponentPermanentsScore)
+                 + (playerHandScore - opponentHandScore);

@@ -74,6 +74,26 @@ Kern der Synergie-Erkennung. Pro Karte einmalig (cachebar, beim DB-Scan):
 - **Messung** mit Synergie-Decks (Tribal, Tokens, Sacrifice) gegen die Version
   ohne SynergyScore — hier muss der Effekt deutlich sichtbar sein.
 
+### 2.4 Externe Tags: Scryfall Tagger als zweite Synergie-Quelle ✅ INFRASTRUKTUR STEHT
+Idee: Crowd-sourced Oracle-Tags (tagger.scryfall.com) wie „discard payoff“,
+„sacrifice outlet“, „lifegain“ als semantische Ergänzung zur Regeltext-Analyse —
+schließt genau die Lücken, wo Pattern-Matching scheitert (modale Effekte,
+Archetyp-Wissen).
+- Umgesetzt: `ExternalTags` lädt `tags/external_tags.csv` (Kartenname;otag,otag)
+  und mappt kuratierte otags auf SynergyTags (Mapping-Tabelle in `ExternalTags.java`).
+  Verifiziert: Healing Salve (modal, von v1-Regex nicht erkannt) bekommt via
+  externem Tag korrekt `LIFE_GAINED`.
+- Offen: Datenbeschaffung. Wichtige Einschränkungen:
+  - Der Scryfall Tagger hat **keine offizielle Bulk-API**; die Haupt-API liefert
+    otags nicht pro Karte, aber die **Suche** unterstützt `otag:`-Queries
+    (`api.scryfall.com/cards/search?q=otag:lifegain`) → pro benötigtem otag eine
+    Suche, Ergebnis lokal als CSV cachen (Rate-Limits beachten, ~10 req/s max).
+  - Alternativ existieren Community-Dumps der Tagger-Daten auf GitHub.
+  - Lizenz: Community-Content unter Wizards Fan Content Policy — für private
+    Nutzung unkritisch, nicht für kommerzielle Produkte.
+- Nutzen über Synergie hinaus: otags wie „removal“, „ramp“, „wrath“ sind auch
+  die perfekte Datenquelle für Archetyp-Erkennung (2.3) und Kartenwert-Prioren (A1).
+
 ### 2.3 Archetyp-Erkennung aus Decklist (klein)
 Vor Spielstart: Kurve, Kreaturenanteil, Removal-Dichte, dominante Tags aus 2.1
 → Preset Aggro/Midrange/Control/Combo → Startgewichte/Rollen-Bias für 1.3.

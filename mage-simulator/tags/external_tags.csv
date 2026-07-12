@@ -1,0 +1,6 @@
+# External oracle tags (e.g. from Scryfall Tagger), format: card name;otag1,otag2
+# Curated otag -> SynergyTag mapping lives in ExternalTags.java.
+# Example entries (fill from a Tagger export or by hand for your card pool):
+Healing Salve;lifegain
+Ajani's Pridemate;lifegain-payoff
+Soul Warden;lifegain,etb-payoff

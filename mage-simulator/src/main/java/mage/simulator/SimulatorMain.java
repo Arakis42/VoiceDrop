@@ -26,6 +26,12 @@ public class SimulatorMain {
 
         Logger.getRootLogger().setLevel(cfg.verbose ? Level.INFO : Level.WARN);
 
+        // optional crowd-sourced tags (e.g. Scryfall Tagger export), silent no-op if absent
+        mage.simulator.synergy.ExternalTags.loadIfPresent("tags/external_tags.csv");
+        if (mage.simulator.synergy.ExternalTags.loadedCardCount() > 0) {
+            System.out.println("External tags loaded for " + mage.simulator.synergy.ExternalTags.loadedCardCount() + " cards");
+        }
+
         if (cfg.tagsDeck != null) {
             // synergy tag report mode (backlog 2.1)
             DataCollectorServices.init(false, false);

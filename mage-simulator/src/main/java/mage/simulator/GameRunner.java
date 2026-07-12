@@ -37,6 +37,7 @@ public class GameRunner {
         result.deck2 = cfg.deck2;
 
         RandomUtil.setSeed(seed);
+        mage.simulator.synergy.SynergyScorer.getInstance().reset(); // per-game player registry
 
         Game game = new TwoPlayerDuel(MultiplayerAttackOption.LEFT, RangeOfInfluence.ONE,
                 MulliganType.GAME_DEFAULT.getMulligan(0), 60, 20, 7);
