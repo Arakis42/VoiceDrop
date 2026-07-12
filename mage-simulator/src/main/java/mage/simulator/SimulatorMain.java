@@ -26,6 +26,14 @@ public class SimulatorMain {
 
         Logger.getRootLogger().setLevel(cfg.verbose ? Level.INFO : Level.WARN);
 
+        if (cfg.tagsDeck != null) {
+            // synergy tag report mode (backlog 2.1)
+            DataCollectorServices.init(false, false);
+            CardScanner.scan();
+            mage.simulator.synergy.DeckSynergyReport.print(cfg.tagsDeck);
+            return;
+        }
+
         System.out.println("=== XMage Auto-Battle Simulator ===");
         System.out.printf("deck1=%s (skill %d)%n", cfg.deck1, cfg.skill1);
         System.out.printf("deck2=%s (skill %d)%n", cfg.deck2, cfg.skill2);
@@ -38,6 +46,10 @@ public class SimulatorMain {
         System.out.printf("Card database ready in %d ms%n", System.currentTimeMillis() - t0);
 
         List<GameResult> results = new ArrayList<>();
+        PrintWriter features = null;
+        if (cfg.featuresOut != null) {
+            features = new PrintWriter(new BufferedWriter(new FileWriter(cfg.featuresOut)));
+        }
         try (PrintWriter out = new PrintWriter(new BufferedWriter(new FileWriter(cfg.out)))) {
             for (int i = 0; i < cfg.games; i++) {
                 long seed = cfg.seed + i;
@@ -45,9 +57,21 @@ public class SimulatorMain {
                 results.add(result);
                 out.println(result.toJson());
                 out.flush();
+                if (features != null && result.featureRows != null) {
+                    int outcome = cfg.name1.equals(result.winner) ? 1
+                            : cfg.name2.equals(result.winner) ? 0 : -1;
+                    for (mage.simulator.features.FeatureRow row : result.featureRows) {
+                        features.println(row.toJson(i, seed, outcome));
+                    }
+                    features.flush();
+                }
                 System.out.printf("game %d/%d: winner=%s, turns=%d, life=%d/%d, %d ms (%s)%n",
                         i + 1, cfg.games, result.winner, result.turns,
                         result.life1, result.life2, result.durationMs, result.endReason);
+            }
+        } finally {
+            if (features != null) {
+                features.close();
             }
         }
 

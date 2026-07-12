@@ -6,7 +6,7 @@ im Harness gemessen, sonst gilt sie als nicht passiert.
 
 ## Phase 0 — Infrastruktur (kein KI-Code, sofort startbar)
 
-### 0.1 `Mage.Simulator` — Headless-CLI-Runner  ← ANFANGEN
+### 0.1 `Mage.Simulator` — Headless-CLI-Runner ✅ UMGESETZT (mage-simulator/)
 Neues Maven-Modul neben `Mage.Tests`. Kein JUnit, eigene `main()`:
 `--deck1 a.dck --deck2 b.dck --games 200 --skill 5 --seed 42 --maxTurns 60 --out results.jsonl`
 - Bausteine existieren alle: `CardScanner.scan()`, `DeckImporter`,
@@ -15,14 +15,14 @@ Neues Maven-Modul neben `Mage.Tests`. Kein JUnit, eigene `main()`:
 - Play/Draw abwechseln, Timeout-Notbremse (`stopOnTurn`).
 - Aufwand: klein. Nutzen: Voraussetzung für alles.
 
-### 0.2 KI-vs-KI-Mess-Harness (A/B-Modus für 0.1)
+### 0.2 KI-vs-KI-Mess-Harness ✅ UMGESETZT (--player1/--player2, --skill1/--skill2)
 `--player1 mad --player2 mad-experimental`: zwei KI-Konfigurationen gegeneinander,
 identische Seeds/Decks paarweise, Ausgabe Winrate + 95%-Konfidenzintervall.
 - Dazu ein Konfigurations-Flag-System für die KI (welcher Evaluator, welcher
   CombatSolver aktiv), damit A/B ohne Code-Duplikation geht.
 - Aufwand: klein (auf 0.1 drauf).
 
-### 0.3 Feature-Logger (Trainingsdaten)
+### 0.3 Feature-Logger ✅ UMGESETZT (--features)
 Pro Zugende: Feature-Vektor (erst grob: Leben, Handzahlen, Board-Summen, Länder)
 + Spielausgang als JSONL. Schnittstelle so bauen, dass 1.1 sie später füllt.
 - Aufwand: klein. Nutzen: Datensammlung läuft ab Tag 1 mit.
@@ -46,7 +46,7 @@ auf 2–3 Deck-Paaren, sonst Gewichte nachziehen.
 
 ## Phase 2 — Synergie-Bewertung
 
-### 2.1 Karten-Tagging: `produces`/`consumes` Event-Tags
+### 2.1 Karten-Tagging: `produces`/`consumes` Event-Tags ✅ V1 UMGESETZT (--tags)
 Kern der Synergie-Erkennung. Pro Karte einmalig (cachebar, beim DB-Scan):
 - **consumes**: TriggeredAbilities introspizieren — Klasse + Filter auf Tags
   mappen: `CREATURE_CAST` („whenever you cast a creature spell“), `CREATURE_ETB`,

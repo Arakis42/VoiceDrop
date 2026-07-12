@@ -9,6 +9,10 @@ public class SimConfig {
     public String deck2;
     public String name1 = "AI_1";
     public String name2 = "AI_2";
+    public String player1 = "mad";
+    public String player2 = "mad";
+    public String featuresOut = null; // JSONL file for per-turn feature rows (0.3)
+    public String tagsDeck = null;    // deck file for synergy tag report mode (2.1)
     public int games = 10;
     public int skill1 = 5;
     public int skill2 = 5;
@@ -26,6 +30,10 @@ public class SimConfig {
             switch (a) {
                 case "--deck1": cfg.deck1 = args[++i]; break;
                 case "--deck2": cfg.deck2 = args[++i]; break;
+                case "--player1": cfg.player1 = args[++i]; break;
+                case "--player2": cfg.player2 = args[++i]; break;
+                case "--features": cfg.featuresOut = args[++i]; break;
+                case "--tags": cfg.tagsDeck = args[++i]; break;
                 case "--games": cfg.games = Integer.parseInt(args[++i]); break;
                 case "--skill": skillBoth = Integer.parseInt(args[++i]); break;
                 case "--skill1": cfg.skill1 = Integer.parseInt(args[++i]); break;
@@ -46,6 +54,9 @@ public class SimConfig {
             cfg.skill1 = skillBoth;
             cfg.skill2 = skillBoth;
         }
+        if (cfg.tagsDeck != null) {
+            return cfg; // tag report mode needs no other args
+        }
         if (cfg.deck1 == null || cfg.deck2 == null) {
             printUsage();
             throw new IllegalArgumentException("--deck1 and --deck2 are required");
@@ -65,6 +76,10 @@ public class SimConfig {
         System.out.println("  --seed N         base seed, game i uses seed+i (default: current time)");
         System.out.println("  --maxTurns N     abort game as draw after N turns (default 60)");
         System.out.println("  --out FILE       JSONL output file (default results.jsonl)");
+        System.out.println("  --player1/--player2 TYPE  AI type per seat: mad | basic (default mad; basic = goldfish)");
+        System.out.println("  --features FILE  write per-turn feature rows as JSONL (training data)");
         System.out.println("  --verbose        show AI logs (log4j INFO)");
+        System.out.println("Other modes:");
+        System.out.println("  --tags DECKFILE  print synergy tag report for a deck and exit");
     }
 }

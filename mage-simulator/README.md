@@ -36,9 +36,21 @@ deck1 winrate (of decided): 33.3% [95% CI 6.1%..79.2%]
 nicht für Simulationen verwenden. Zwei spielbare Demo-Decks liegen in `decks/`.
 
 Optionen: `--games N`, `--skill N` (1–8, beide), `--skill1/--skill2` (A/B-Test),
+`--player1/--player2 TYP` (`mad` = volle KI, `basic` = Goldfish, spielt nichts),
 `--thinkTime S` (Denkzeit-Limit pro Entscheidung, Default skill×3),
 `--seed N` (Spiel i nutzt seed+i), `--maxTurns N` (Abbruch als Draw, Default 60),
-`--out DATEI`, `--verbose` (KI-Logs).
+`--out DATEI`, `--features DATEI` (Trainingsdaten: ein Feature-Vektor pro Zug
+mit Spielausgang, JSONL), `--verbose` (KI-Logs).
+
+Weitere Modi:
+
+```bash
+# Synergie-Report für ein Deck (produces/consumes-Tags, aktive Synergie-Paare)
+mvn -q exec:java -Dexec.args="--tags decks/synergy_lifegain.txt"
+
+# Goldfish-Test: Wie schnell tötet Deck A einen passiven Gegner? (kill turn)
+mvn -q exec:java -Dexec.args="--deck1 decks/mono_red_aggro.txt --deck2 decks/mono_green_stompy.txt --player2 basic --games 20 --skill 4"
+```
 
 Beim ersten Lauf wird die Karten-Datenbank gebaut (`CardScanner.scan()`, dauert
 einige Minuten, legt `db/` im Arbeitsverzeichnis an).
@@ -67,7 +79,20 @@ einige Minuten, legt `db/` im Arbeitsverzeichnis an).
   besser über mehrere JVM-Prozesse (verschiedene `--seed`-Bereiche, gleiche Decks).
 - Mulligans sind aktiv (Spieler laufen nicht im Test-Modus).
 
+## Umgesetzte Backlog-Items
+
+- **0.1** CLI-Runner (verifiziert, s.o.)
+- **0.2** Spieler-Typen pro Seite: `--player1/--player2 mad|basic`
+  (verifiziert: mad vs. basic = 2:0 in 11/14 Zügen — Kill-Turn-Messung)
+- **0.3** Feature-Logger: `--features f.jsonl`, ein flacher Feature-Vektor pro Zug
+  (Leben, Hand, Library, Friedhof, Länder/untapped, Kreaturen, Power/Toughness
+  beider Spieler) + `p1_won`-Label — direkt ML-tauglich
+- **2.1 (v1)** Synergie-Tagging: `--tags deck.txt` — produces/consumes-Tags pro
+  Karte via Regeltext-Analyse (`mage.simulator.synergy`), Report mit aktiven
+  Synergie-Paaren. Verifiziert an Lifegain-Kette (Soul Warden → Ajani's Pridemate).
+  Bekannte v1-Lücke: modale Effekte (z.B. Healing Salve) werden noch nicht erkannt.
+
 ## Nächste Schritte (siehe mage-analysis/06-coding-backlog.md)
 
-- 0.2: `--player1/--player2`-Flags für unterschiedliche KI-Konfigurationen (A/B).
-- 0.3: Feature-Logger (Zustands-Vektor pro Zug für spätere ML-Trainingsdaten).
+- 2.2: SynergyScore in die Bewertungsfunktion einbauen
+- 1.1/1.2: GameFeatures + RaceCalculator als Evaluator-Fundament

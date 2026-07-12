@@ -17,6 +17,7 @@ public class GameResult {
     public long durationMs;
     public String endReason;     // game_over | max_turns | error
     public String error;         // exception message if endReason == error
+    public transient java.util.List<mage.simulator.features.FeatureRow> featureRows; // filled when --features is set
 
     private static String esc(String s) {
         if (s == null) {

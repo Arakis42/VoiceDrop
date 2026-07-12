@@ -12,8 +12,9 @@ import mage.game.match.Match;
 import mage.game.match.MatchOptions;
 import mage.game.FreeForAllMatch;
 import mage.game.mulligan.MulliganType;
-import mage.player.ai.ComputerPlayer7;
 import mage.players.Player;
+import mage.simulator.features.FeatureCollector;
+import mage.simulator.players.PlayerFactory;
 import mage.util.RandomUtil;
 
 /**
@@ -44,10 +45,17 @@ public class GameRunner {
         MatchOptions matchOptions = new MatchOptions("sim match", "sim game type", true);
         Match match = new FreeForAllMatch(matchOptions);
 
-        ComputerPlayer7 player1 = createPlayer(cfg.name1, cfg.skill1, cfg);
-        ComputerPlayer7 player2 = createPlayer(cfg.name2, cfg.skill2, cfg);
+        Player player1 = PlayerFactory.create(cfg.player1, cfg.name1, cfg.skill1, cfg.thinkTimeSecs);
+        Player player2 = PlayerFactory.create(cfg.player2, cfg.name2, cfg.skill2, cfg.thinkTimeSecs);
         addPlayer(game, match, player1, cfg.deck1);
         addPlayer(game, match, player2, cfg.deck2);
+
+        FeatureCollector collector = null;
+        if (cfg.featuresOut != null) {
+            collector = new FeatureCollector(player1.getId(), player2.getId());
+            PlayerFactory.attachCollector(player1, collector);
+            PlayerFactory.attachCollector(player2, collector);
+        }
 
         GameOptions options = new GameOptions();
         options.stopOnTurn = cfg.maxTurns; // with default stopAtStep=UNTAP this ends the game as a draw
@@ -74,15 +82,10 @@ public class GameRunner {
             result.winner = "draw";
             result.endReason = game.hasEnded() ? "game_over" : "max_turns";
         }
-        return result;
-    }
-
-    private ComputerPlayer7 createPlayer(String name, int skill, SimConfig cfg) {
-        ComputerPlayer7 player = new ComputerPlayer7(name, RangeOfInfluence.ONE, skill);
-        if (cfg.thinkTimeSecs > 0) {
-            player.setMaxThinkTimeSecs(cfg.thinkTimeSecs);
+        if (collector != null) {
+            result.featureRows = collector.getRows();
         }
-        return player;
+        return result;
     }
 
     private void addPlayer(Game game, Match match, Player player, String deckFile) throws Exception {
