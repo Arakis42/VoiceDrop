@@ -98,9 +98,12 @@ einige Minuten, legt `db/` im Arbeitsverzeichnis an).
   verlor die A/B-Messung **9:21 (30%, CI 17–48%)** gegen die Standard-KI —
   der Bonus verzerrte Kampf-Trades und belohnte vergangene Einmal-Events.
   v2 („realisierte Synergie“: Producer in Feld+Friedhof zählen, monoton →
-  Casten wird belohnt, Trades nicht bestraft): **16:14 (53%, CI 36–70%)** —
-  Regression behoben, echter Gewinn braucht größere Stichprobe/Synergie-Decks
-  mit mehr Entscheidungsspielraum.
+  Casten wird belohnt, Trades nicht bestraft): 30 Spiele **16:14 (53%)**,
+  100 Spiele **48:52 (48%, CI 38.5–57.7%)** — Regression behoben, Effekt auf
+  dem kleinen Lifegain-Testdeck statistisch **neutral**. Fazit: Das Testdeck
+  bietet zu wenig Entscheidungsspielraum (beide KIs spielen fast identisch);
+  nächster Messschritt sind Synergie-Decks mit echten Sequencing-Entscheidungen
+  (Sacrifice/Tokens) oder die Integration erst nach dem Evaluator-Umbau (Phase 1).
 - **ExternalTags** (Scryfall-Tagger-Anbindung, offline): `tags/external_tags.csv`
   (`Kartenname;otag1,otag2`) wird beim Start geladen; kuratiertes Mapping
   otag→SynergyTag in `ExternalTags.java`. Verifiziert: Healing Salve bekommt via

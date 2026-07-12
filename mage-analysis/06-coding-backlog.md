@@ -62,7 +62,7 @@ Kern der Synergie-Erkennung. Pro Karte einmalig (cachebar, beim DB-Scan):
   mit Teilabdeckung leben und trotzdem netto besser bewerten.
 - Deliverable: `CardSynergyTags.of(card)` + Abdeckungs-Report über ein Testdeck.
 
-### 2.2 `SynergyScore` in den Evaluator ✅ V2 UMGESETZT (mad-synergy; v1 verlor 30%, v2 53% — Messung läuft weiter)
+### 2.2 `SynergyScore` in den Evaluator ✅ V2 UMGESETZT (mad-synergy; v1: 30% = schlechter, v2: 48% über 100 Spiele = neutral)
 - Board×Board: aktives Paar (Consumer liegt, Producer liegt) = laufende Engine → Bonus.
 - Board×Hand: Consumer liegt, Producer auf Hand → **Handkarte wird wertvoller**
   (genau der Fall aus deinem Beispiel: „whenever you cast a creature“-Permanent
