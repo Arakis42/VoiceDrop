@@ -24,9 +24,7 @@ public class SimulatorMain {
     public static void main(String[] args) throws Exception {
         SimConfig cfg = SimConfig.parse(args);
 
-        if (!cfg.verbose) {
-            Logger.getRootLogger().setLevel(Level.WARN);
-        }
+        Logger.getRootLogger().setLevel(cfg.verbose ? Level.INFO : Level.WARN);
 
         System.out.println("=== XMage Auto-Battle Simulator ===");
         System.out.printf("deck1=%s (skill %d)%n", cfg.deck1, cfg.skill1);
