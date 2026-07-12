@@ -18,8 +18,22 @@ mvn -DskipTests install
 ```bash
 cd Mage.Simulator
 mvn -q package
-mvn -q exec:java -Dexec.args="--deck1 '../Mage.Tests/RB Aggro.dck' --deck2 '../Mage.Tests/RB Aggro.dck' --games 10 --skill 5 --seed 42 --out results.jsonl"
+mvn -q exec:java -Dexec.args="--deck1 decks/mono_red_aggro.txt --deck2 decks/mono_green_stompy.txt --games 10 --skill 5 --seed 42 --out results.jsonl"
 ```
+
+Verifizierter Beispiel-Lauf (Skill 4, Seed 42):
+
+```
+game 1/3: winner=AI_2, turns=14, life=-4/6, 1805 ms (game_over)
+game 2/3: winner=AI_2, turns=21, life=-7/5, 2834 ms (game_over)
+game 3/3: winner=AI_1, turns=21, life=1/-3, 1076 ms (game_over)
+deck1 winrate (of decided): 33.3% [95% CI 6.1%..79.2%]
+```
+
+**Achtung Deck-Format:** `.txt` = Kartenname-basiert (`4 Lightning Bolt`),
+`.dck` = XMage-Format mit Set-Codes. Das in `Mage.Tests/` liegende
+`RB Aggro.dck` ist ein 71-Mountain-Dummy (Unit-Tests ersetzen die Library) —
+nicht für Simulationen verwenden. Zwei spielbare Demo-Decks liegen in `decks/`.
 
 Optionen: `--games N`, `--skill N` (1–8, beide), `--skill1/--skill2` (A/B-Test),
 `--thinkTime S` (Denkzeit-Limit pro Entscheidung, Default skill×3),
