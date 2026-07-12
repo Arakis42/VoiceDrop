@@ -12,25 +12,28 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Backlog item 2.2: synergy-aware extra scoring plugged into GameStateEvaluator2.
  * <p>
- * Scores active producer/consumer tag pairs so the AI prefers game states where
- * synergies are assembled and prefers casting cards that feed a payoff on board:
- * - board consumer x board producer: full bonus (running engine)
- * - board consumer x hand producer:  small bonus (casting it upgrades to full — gradient up)
- * - hand consumer  x board producers: small bonus (casting the payoff is attractive)
+ * V2 design ("realized synergy"), after v1 measurably LOST 9:21 against plain mad:
+ * v1 scored standing board producer/consumer pairs, which inflated own-permanent
+ * value and distorted combat trades (AI hoarded creatures instead of trading),
+ * and rewarded past one-shot events (ETB/CAST) that cannot fire again.
  * <p>
- * Values are calibrated against ArtificialScoringSystem magnitudes
- * (a permanent is worth ~600-1500, a hand card 5): a running pair ~ a small buff,
- * hand bonuses intentionally tiny but larger than HAND_CARD_SCORE differences.
- * Per-tag caps avoid runaway scores on token swarms.
+ * V2 scores, per consumer tag on the battlefield, the producers in
+ * battlefield + graveyard — a monotone "events realized" counter:
+ * - casting a producer moves it hand -> battlefield: score increases (cast is rewarded)
+ * - a creature trading moves battlefield -> graveyard: score unchanged (no trade distortion)
+ * Plus a tiny bonus for a consumer in hand while future producers are in hand,
+ * so the AI prefers deploying the payoff early (board consumer unlocks the full bonus).
  * <p>
+ * Values are deliberately small tie-breakers relative to ArtificialScoringSystem
+ * magnitudes (a permanent ~600-1500), not overrides of material judgement.
  * Enabled per player id (A/B testing: only the "mad-synergy" player uses it).
  */
 public final class SynergyScorer implements GameStateEvaluator2.ExtraScorer {
 
-    private static final int BOARD_PAIR_SCORE = 60;      // per producer matching a board consumer
-    private static final int HAND_PRODUCER_SCORE = 15;   // producer in hand, consumer on board
-    private static final int HAND_CONSUMER_SCORE = 10;   // consumer in hand, per board producer
-    private static final int PER_TAG_CAP = 300;
+    private static final int REALIZED_PRODUCER_SCORE = 20; // per producer in field+yard, consumer on board
+    private static final int REALIZED_PRODUCER_MAX = 8;    // cap counted producers per tag
+    private static final int HAND_CONSUMER_SCORE = 5;      // consumer in hand x future producer in hand
+    private static final int HAND_CONSUMER_CAP = 30;
 
     private static final SynergyScorer INSTANCE = new SynergyScorer();
 
@@ -73,16 +76,21 @@ public final class SynergyScorer implements GameStateEvaluator2.ExtraScorer {
             return 0;
         }
 
-        // collect tags on battlefield and hand
-        Map<SynergyTag, Integer> boardProduces = new EnumMap<>(SynergyTag.class);
+        // realized producers = battlefield + graveyard (monotone: casting increases it, trading does not decrease it)
+        Map<SynergyTag, Integer> realizedProduces = new EnumMap<>(SynergyTag.class);
         Map<SynergyTag, Integer> boardConsumes = new EnumMap<>(SynergyTag.class);
         for (Permanent permanent : game.getBattlefield().getAllActivePermanents(playerId)) {
             CardSynergyTags tags = tagsOf(permanent); // Permanent extends Card
             for (SynergyTag t : tags.produces) {
-                boardProduces.merge(t, 1, Integer::sum);
+                realizedProduces.merge(t, 1, Integer::sum);
             }
             for (SynergyTag t : tags.consumes) {
                 boardConsumes.merge(t, 1, Integer::sum);
+            }
+        }
+        for (Card card : player.getGraveyard().getCards(game)) {
+            for (SynergyTag t : tagsOf(card).produces) {
+                realizedProduces.merge(t, 1, Integer::sum);
             }
         }
         Map<SynergyTag, Integer> handProduces = new EnumMap<>(SynergyTag.class);
@@ -100,26 +108,20 @@ public final class SynergyScorer implements GameStateEvaluator2.ExtraScorer {
         int total = 0;
         for (SynergyTag tag : SynergyTag.values()) {
             int bc = boardConsumes.getOrDefault(tag, 0);
-            if (bc == 0 && !handConsumes.containsKey(tag)) {
+            int hc = handConsumes.getOrDefault(tag, 0);
+            if (bc == 0 && hc == 0) {
                 continue;
             }
-            int bp = boardProduces.getOrDefault(tag, 0);
+            int rp = realizedProduces.getOrDefault(tag, 0);
             int hp = handProduces.getOrDefault(tag, 0);
-            int hc = handConsumes.getOrDefault(tag, 0);
 
-            int tagScore = 0;
             if (bc > 0) {
-                // running engine: each board producer feeds the consumer(s)
-                tagScore += Math.min(bc, 3) * bp * BOARD_PAIR_SCORE / Math.max(1, Math.min(bc, 3));
-                tagScore = Math.min(tagScore, PER_TAG_CAP);
-                // producers still in hand: casting them will feed the engine
-                tagScore += Math.min(hp * HAND_PRODUCER_SCORE, 60);
+                // consumer deployed: reward every realized producer event (cast-friendly, trade-neutral)
+                total += Math.min(rp, REALIZED_PRODUCER_MAX) * REALIZED_PRODUCER_SCORE;
+            } else if (hp > 0) {
+                // consumer still in hand, future producers available: deploying the payoff is attractive
+                total += Math.min(hc * hp * HAND_CONSUMER_SCORE, HAND_CONSUMER_CAP);
             }
-            if (hc > 0 && bp > 0) {
-                // payoff in hand, producers already on board: casting it is attractive
-                tagScore += Math.min(hc * Math.min(bp, 4) * HAND_CONSUMER_SCORE, 80);
-            }
-            total += tagScore;
         }
         return total;
     }
