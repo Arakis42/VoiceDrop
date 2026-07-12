@@ -90,7 +90,23 @@ einige Minuten, legt `db/` im Arbeitsverzeichnis an).
 - **2.1 (v1)** Synergie-Tagging: `--tags deck.txt` — produces/consumes-Tags pro
   Karte via Regeltext-Analyse (`mage.simulator.synergy`), Report mit aktiven
   Synergie-Paaren. Verifiziert an Lifegain-Kette (Soul Warden → Ajani's Pridemate).
-  Bekannte v1-Lücke: modale Effekte (z.B. Healing Salve) werden noch nicht erkannt.
+  Bekannte v1-Lücke: modale Effekte (z.B. Healing Salve) werden noch nicht erkannt —
+  schließbar über externe Tags (s.u.).
+- **2.2** SynergyScorer: Spielertyp `mad-synergy` (Synergie-Bewertung in
+  `GameStateEvaluator2` via ExtraScorer-Hook, Patch in `patches/`).
+  **Lehrstück in Messdisziplin:** v1 (Bonus für liegende Producer/Consumer-Paare)
+  verlor die A/B-Messung **9:21 (30%, CI 17–48%)** gegen die Standard-KI —
+  der Bonus verzerrte Kampf-Trades und belohnte vergangene Einmal-Events.
+  v2 („realisierte Synergie“: Producer in Feld+Friedhof zählen, monoton →
+  Casten wird belohnt, Trades nicht bestraft): **16:14 (53%, CI 36–70%)** —
+  Regression behoben, echter Gewinn braucht größere Stichprobe/Synergie-Decks
+  mit mehr Entscheidungsspielraum.
+- **ExternalTags** (Scryfall-Tagger-Anbindung, offline): `tags/external_tags.csv`
+  (`Kartenname;otag1,otag2`) wird beim Start geladen; kuratiertes Mapping
+  otag→SynergyTag in `ExternalTags.java`. Verifiziert: Healing Salve bekommt via
+  externem `lifegain`-Tag korrekt `LIFE_GAINED`. Datenquelle: Scryfall-Suche
+  unterstützt `otag:`-Queries (`api.scryfall.com/cards/search?q=otag:lifegain`,
+  Rate-Limits beachten) oder Community-Dumps; keine offizielle Bulk-API.
 
 ## Nächste Schritte (siehe mage-analysis/06-coding-backlog.md)
 
